@@ -5,10 +5,8 @@ This repository contains a small application to interact with
 a Roku streaming device using HTTP POST commands. The code has
 been tested on Linux with Tcl/Tk 8.6 and a Roku 3 / 4200X device.
 
-The app can be controlled via mouse clicks or hotkeys (when in focus).
-
+The app can be controlled via mouse clicks or hotkeys (when in focus).  
 List of Hotkeys:
-
 - Back: Backspace, b
 - Home: Home, h
 - Up: Cursor up, u
