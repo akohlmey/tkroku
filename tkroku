@@ -1,0 +1,313 @@
+#!/usr/bin/wish
+# TkRoku version 1.0
+# Copyright (c) 2016  Axel Kohlmeyer <akohlmey@gmail.com>
+########################################################################
+# check prerequisites
+#
+if {[catch {package require http 2.6} ver]} {
+    puts "$ver. This script requires at least http v2.6. Exiting..."
+   exit 1
+}
+if {[catch {package require htmlparse 1.2} ver]} {
+    puts "$ver. This script requires at least htmlparse v1.2. Exiting..."
+   exit 1
+}
+########################################################################
+#
+namespace eval tkroku {
+    variable address {localhost}
+    variable baseurl "http://$address:8060/"
+    variable rokuid {(unknown)}
+    variable rokuname {(unknown)}
+    variable rokumodel {(unknown)}
+    variable rokuapps {}
+    variable text {}
+    variable valid 0
+    variable top .tkroku
+
+    # callback for parsing Roku status query
+    proc query_callback {tag slash param textBehindTheTag} {
+        variable rokuid
+        variable rokuname
+        variable rokumodel
+
+        if {[string equal $slash {}]} {
+            if {[string equal $tag {friendlyName}]} {
+                set rokuid $textBehindTheTag
+            } elseif {[string equal $tag {modelName}]} {
+                set rokuname $textBehindTheTag
+            } elseif {[string equal $tag {modelNumber}]} {
+                set rokumodel $textBehindTheTag
+            }
+        }
+    }
+
+    # callback for parsing Roku app list query
+    proc apps_callback {tag slash param textBehindTheTag} {
+        variable rokuapps
+        set re {id="([0-9]+)" type="appl" version="([0-9.]+)".*}
+
+        if {[string equal $slash {}]} {
+            if {[regexp $re $param m m1 m2]} {
+                lappend rokuapps [list $m1 $textBehindTheTag $m2]
+            }
+        }
+    }
+
+    # initialize roku namespace
+    proc init {ip} {
+        variable address
+        variable baseurl
+        variable valid
+        variable rokuapps
+        variable rokuid
+        variable rokuname
+        variable rokumodel
+
+        set address $ip
+        set baseurl "http://$ip:8060/"
+
+        if { [catch {::http::geturl $baseurl} tok] } {
+            puts "No Roku found at: $address"
+            set valid 0
+            set rokuid    {(unknown)}
+            set rokuname  {(unknown)}
+            set rokumodel {(unknown)}
+            set rokuapps {}
+            set address {localhost}
+            set baseurl "http://$ip:8060/"
+            exit 1
+        } else {
+            ::http::wait $tok
+            set data [::http::data $tok]
+            ::htmlparse::parse -cmd [namespace current]::query_callback $data
+            puts "Found: $rokuid ($rokuname / $rokumodel)"
+            set valid 1
+            # query list of installed apps
+            set tok [::http::geturl $baseurl/query/apps]
+            ::http::wait $tok
+            set data [::http::data $tok]
+            set rokuapps {}
+            ::htmlparse::parse -cmd [namespace current]::apps_callback $data
+         }
+    }
+
+    # send a keypress query to the roku
+    proc sendkey {key} {
+        variable baseurl
+        variable valid
+
+        if {!$valid} return
+
+        set url $baseurl
+        append url {keypress/}
+        append url $key
+
+        if { [catch {::http::geturl $url -query dummy} tok] } {
+            puts "Sending key event $key failed"
+        } else {
+            ::http::wait $tok
+        }
+    }
+
+    # launch a roku app
+    proc launch {id} {
+        variable baseurl
+        variable valid
+
+        if {!$valid} return
+
+        set url $baseurl
+        append url {launch/}
+        append url $id
+
+        if { [catch {::http::geturl $url -query dummy} tok] } {
+            puts "Launching app with id $id failed"
+        } else {
+            ::http::wait $tok
+        }
+    }
+
+    # send keyboard text to roku in one go
+    proc sendtext {args} {
+        variable text
+
+        set t [string trim [string tolower $text]]
+        for {set i 0} {$i < [string length $t]} {incr i} {
+            set c [string index $t $i]
+            if {$c == { }} {
+                sendkey {Lit_%20}
+            } else {
+                sendkey Lit_$c
+            }
+        }
+    }
+
+    # popu dialog for entering text via keyboard
+    proc popup {w p} {
+        variable text
+        destroy       $p
+        toplevel      $p -class Dialog
+        wm title      $p {TkRoku: Send Text to Roku}
+        wm iconname   $p {Send Text to Roku}
+        wm minsize    $p 350 100
+        wm protocol   $p WM_DELETE_WINDOW { }
+        wm attributes $p -type splash
+        wm transient  $p $w
+        set f $p.frame
+        set font {tkHeading 14 bold}
+        labelframe $f -bd 4 -relief ridge -padx 2m -pady 2m \
+            -text {Send Text to Roku} -font $font -fg white -bg purple
+        entry $f.text -justify left -relief flat  -font $font \
+            -textvariable "[namespace current]::text"
+        button $f.cancel -text Cancel -command "destroy $p; focus -force $w" \
+            -font $font -fg purple
+        button $f.clear -text Clear -font $font -fg purple \
+            -command "set [namespace current]::text {}"
+        button $f.back -text {<x|} -font $font -fg purple \
+            -command "[namespace current]::sendkey Backspace" 
+        button $f.send -text Send  -font $font -fg purple \
+            -command "[namespace current]::sendtext; destroy $p; focus -force $w"    
+        grid  $f.text -row 0 -column 0 -columnspan 4 -sticky snew
+        grid  rowconfigure $f 0 -weight 1
+        grid  $f.cancel -row 1 -column 0 -sticky snew
+        grid  $f.clear  -row 1 -column 1 -sticky snew
+        grid  $f.back   -row 1 -column 2 -sticky snew
+        grid  $f.send   -row 1 -column 3 -sticky snew
+        
+        grid columnconfigure $f 0 -weight 1
+        grid columnconfigure $f 1 -weight 1
+        grid columnconfigure $f 2 -weight 1
+        grid columnconfigure $f 3 -weight 1
+        pack $f -fill both -expand 1 -side left
+        focus -force $f.text
+        bind $p <Return> "$f.send invoke"
+        bind $p <Escape> "destroy $p; focus -force $w"
+    }
+
+    proc main {args} {
+        variable rokuid
+        variable rokuname
+        variable rokuapps
+        variable top
+
+        wm title      . tkroku
+        wm iconname   . tkroku
+        wm minsize    . 250 450
+        wm geometry   . +500+250
+        wm attributes . -type splash
+        wm protocol   . WM_DELETE_WINDOW { }
+
+        labelframe $top -bd 4 -relief ridge -padx 2m -pady 2m -fg white -bg purple \
+            -text "$rokuid / $rokuname" -font {tkHeading 14 bold}
+
+        set font {tkFixed 12 bold}
+        proc mkbutton {p n t cmd r c f} {
+            button $p.$n -text $t -command "[namespace current]::sendkey $cmd" \
+                -font $f -fg purple
+            grid   $p.$n -row $r -column $c -sticky snew
+        }
+
+        set row 0
+        mkbutton $top back Back Back $row 0 $font
+        mkbutton $top up   {^}  Up   $row 1 $font
+        mkbutton $top home Home Home $row 2 $font
+        grid   rowconfigure $top $row -weight 1
+
+        incr row
+        mkbutton $top left  {<}  Left   $row 0 $font
+        mkbutton $top ok    {OK} Select $row 1 $font
+        mkbutton $top right {>}  Right  $row 2 $font
+        grid   rowconfigure $top $row -weight 1
+
+        incr row
+        mkbutton $top repl  {~}  InstantReplay $row 0 $font
+        mkbutton $top down  {v}  Down  $row 1 $font
+        mkbutton $top star  {*}  Info  $row 2 $font
+        grid   rowconfigure $top $row -weight 1
+
+        incr row
+        mkbutton $top frev  {<<}   Rev  $row 0 $font
+        mkbutton $top play  {|| >} Play $row 1 $font
+        mkbutton $top ffwd  {>>}   Fwd  $row 2 $font
+        grid   rowconfigure $top $row -weight 1
+
+        incr row
+        button $top.text -text {Send Text to Roku} -font $font -fg purple \
+            -command "[namespace current]::popup $top .popup"
+        grid   $top.text -row $row -column 0 -columnspan 3 -sticky snew
+        grid   rowconfigure $top $row -weight 1
+
+        set idx 0
+        foreach app $rokuapps {
+            incr row
+            incr idx
+            button $top.app$idx -text " $idx: [lindex $app 1]" \
+                -command "[namespace current]::launch [lindex $app 0]" \
+                -font $font -fg purple -justify left
+            grid   $top.app$idx -row $row -column 0 -columnspan 3 -sticky snew
+            grid   rowconfigure $top $row -weight 1
+        }
+
+        incr row
+        button $top.quit -text {Dismiss} -command {exit 0} \
+            -font $font -fg purple
+        grid   $top.quit -row $row -column 0 -columnspan 3 -sticky snew
+        grid   rowconfigure $top $row -weight 1
+
+        grid columnconfigure $top 0 -weight 1
+        grid columnconfigure $top 1 -weight 1
+        grid columnconfigure $top 2 -weight 1
+        pack $top -fill both -expand 1 -side left
+
+        bind . <Key>   {
+            proc act {button} {
+                $button flash
+                $button invoke
+            }
+            set keysym "%K"
+
+            if {[string equal $keysym {BackSpace}]}  "act $::tkroku::top.back"
+            if {[string equal $keysym {b}]}          "act $::tkroku::top.back"
+            if {[string equal $keysym {Prior}]}      "act $::tkroku::top.back"
+            if {[string equal $keysym {Home}]}       "act $::tkroku::top.home"
+            if {[string equal $keysym {h}]}          "act $::tkroku::top.home"
+            if {[string equal $keysym {Return}]}     "act $::tkroku::top.ok"
+            if {[string equal $keysym {o}]}          "act $::tkroku::top.ok"
+            if {[string equal $keysym {Up}]}         "act $::tkroku::top.up"
+            if {[string equal $keysym {u}]}          "act $::tkroku::top.up"
+            if {[string equal $keysym {Down}]}       "act $::tkroku::top.down"
+            if {[string equal $keysym {d}]}          "act $::tkroku::top.down"
+            if {[string equal $keysym {Left}]}       "act $::tkroku::top.left"
+            if {[string equal $keysym {Right}]}      "act $::tkroku::top.right"
+            if {[string equal $keysym {comma}]}      "act $::tkroku::top.left"
+            if {[string equal $keysym {point}]}      "act $::tkroku::top.right"
+            if {[string equal $keysym {less}]}       "act $::tkroku::top.frev"
+            if {[string equal $keysym {r}]}          "act $::tkroku::top.frev"
+            if {[string equal $keysym {greater}]}    "act $::tkroku::top.ffwd"
+            if {[string equal $keysym {f}]}          "act $::tkroku::top.ffwd"
+            if {[string equal $keysym {space}]}      "act $::tkroku::top.play"
+            if {[string equal $keysym {p}]}          "act $::tkroku::top.play"
+            if {[string equal $keysym {asciitilde}]} "act $::tkroku::top.repl"
+            if {[string equal $keysym {t}]}          "act $::tkroku::top.text"
+            if {[string equal $keysym {Escape}]}     "act $::tkroku::top.quit"
+            if {[string equal $keysym {q}]}          "act $::tkroku::top.quit"
+            if {[string equal $keysym {i}]}          "act $::tkroku::top.star"
+            if {[string equal $keysym {asterisk}]}   "act $::tkroku::top.star"
+            if {[string equal $keysym {question}]}   "::tkroku::sendkey Search"
+
+            for {set i 1} {$i < 10} {incr i} {
+                if {[string equal $keysym $i] && [llength $rokuapps] >= $i} {
+                    act $::tkroku::top.app$i
+                }
+            }
+        }
+    }
+}
+
+########################################################################
+# change IP address for roku device
+#::tkroku::init 192.168.0.2
+
+::tkroku::init roku
+::tkroku::main
