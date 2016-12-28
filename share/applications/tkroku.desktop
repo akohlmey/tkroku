@@ -1,0 +1,9 @@
+[Desktop Entry]
+Version=1.0
+Name=TkRoku
+Comment=Remote Control App for Roku Devices
+Exec=tkroku
+Icon=tkroku
+Terminal=false
+Type=Application
+Categories=AudioVideo;Tk;
