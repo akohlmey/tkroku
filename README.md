@@ -9,10 +9,10 @@ The app can be controlled via mouse clicks or hotkeys (when in focus).
 List of Hotkeys:
 - Back: Backspace, b
 - Home: Home, h
-- Up: Cursor up, u
-- Down: Cursor down, d
+- Up: Cursor up, u, ^
+- Down: Cursor down, d, v
 - Left: Cursor left, Comma
-- Right: Cursor right, Point
+- Right: Cursor right, Period
 - OK: Enter, o
 - Play/Pause: Space, p
 - Replay: ~, i
