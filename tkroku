@@ -266,6 +266,7 @@ namespace eval tkroku {
                 $button invoke
             }
             set keysym "%K"
+            #puts "keysym = $keysym"
 
             if {[string equal $keysym {BackSpace}]}  "act $::tkroku::top.back"
             if {[string equal $keysym {b}]}          "act $::tkroku::top.back"
@@ -276,12 +277,14 @@ namespace eval tkroku {
             if {[string equal $keysym {o}]}          "act $::tkroku::top.ok"
             if {[string equal $keysym {Up}]}         "act $::tkroku::top.up"
             if {[string equal $keysym {u}]}          "act $::tkroku::top.up"
+            if {[string equal $keysym {asciicircum}]} "act $::tkroku::top.up"
             if {[string equal $keysym {Down}]}       "act $::tkroku::top.down"
             if {[string equal $keysym {d}]}          "act $::tkroku::top.down"
+            if {[string equal $keysym {v}]}          "act $::tkroku::top.down"
             if {[string equal $keysym {Left}]}       "act $::tkroku::top.left"
             if {[string equal $keysym {Right}]}      "act $::tkroku::top.right"
             if {[string equal $keysym {comma}]}      "act $::tkroku::top.left"
-            if {[string equal $keysym {point}]}      "act $::tkroku::top.right"
+            if {[string equal $keysym {period}]}     "act $::tkroku::top.right"
             if {[string equal $keysym {less}]}       "act $::tkroku::top.frev"
             if {[string equal $keysym {r}]}          "act $::tkroku::top.frev"
             if {[string equal $keysym {greater}]}    "act $::tkroku::top.ffwd"
