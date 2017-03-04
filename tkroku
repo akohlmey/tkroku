@@ -191,11 +191,12 @@ namespace eval tkroku {
         variable rokuapps
         variable top
 
-        wm title      . tkroku
-        wm iconname   . tkroku
-        wm minsize    . 250 450
-        wm geometry   . +500+250
-        wm attributes . -type splash
+        wm title      . TkRoku
+        wm iconname   . TkRoku
+        wm minsize    . 250 500
+        wm maxsize    . 250 500
+#        wm geometry   . +500+250
+#        wm attributes . -type splash
         wm protocol   . WM_DELETE_WINDOW { }
 
         labelframe $top -bd 4 -relief ridge -padx 2m -pady 2m -fg white -bg purple \
