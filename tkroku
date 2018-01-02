@@ -45,7 +45,7 @@ namespace eval tkroku {
     # callback for parsing Roku app list query
     proc apps_callback {tag slash param textBehindTheTag} {
         variable rokuapps
-        set re {id="([0-9]+)" type="appl" version="([0-9.]+)".*}
+        set re {id="([0-9]+)" subtype=".*" type="appl" version="([0-9.]+)".*}
 
         if {[string equal $slash {}]} {
             if {[regexp $re $param m m1 m2]} {
